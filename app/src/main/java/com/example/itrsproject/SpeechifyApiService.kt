@@ -14,8 +14,6 @@ import java.util.concurrent.TimeUnit
 class SpeechifyApiService private constructor() {
 
     private lateinit var appContext: Context
-
-    // НАСТРОЙКИ СЕРВИСА — ВНУТРИ КЛАССА
     private var apiKey: String = "WTjN_NiiR70WDps5YMH6x9za5gQ2MvdDVwGiOYa4kMk="
     private var voiceId: String = "mikhail"
     private var audioFormat: String = "mp3"
@@ -32,20 +30,6 @@ class SpeechifyApiService private constructor() {
 
     fun init(context: Context) {
         appContext = context.applicationContext
-    }
-
-    fun configure(
-        apiKey: String? = null,
-        voiceId: String? = null,
-        audioFormat: String? = null,
-        language: String? = null,
-        model: String? = null
-    ) {
-        if (apiKey != null) this.apiKey = apiKey
-        if (voiceId != null) this.voiceId = voiceId
-        if (audioFormat != null) this.audioFormat = audioFormat
-        if (language != null) this.language = language
-        if (model != null) this.model = model
     }
 
     suspend fun synthesize(text: String): File = withContext(Dispatchers.IO) {

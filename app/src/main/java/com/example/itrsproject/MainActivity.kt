@@ -262,7 +262,6 @@ fun LoginContent(
     ) {
         Text("Вход", fontSize = 22.sp, fontWeight = FontWeight.Bold)
 
-        // Показываем ошибку если есть
         errorMessage?.let { message ->
             Text(
                 text = message,
@@ -276,7 +275,7 @@ fun LoginContent(
             value = email,
             onValueChange = {
                 email = it
-                errorMessage = null // Сбрасываем ошибку при изменении текста
+                errorMessage = null
             },
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth(),
@@ -288,7 +287,7 @@ fun LoginContent(
             value = password,
             onValueChange = {
                 password = it
-                errorMessage = null // Сбрасываем ошибку при изменении текста
+                errorMessage = null
             },
             label = { Text("Пароль") },
             modifier = Modifier.fillMaxWidth(),
@@ -363,7 +362,6 @@ fun RegisterContent(
     ) {
         Text("Регистрация", fontSize = 22.sp, fontWeight = FontWeight.Bold)
 
-        // Показываем ошибку если есть
         errorMessage?.let { message ->
             Text(
                 text = message,
@@ -388,7 +386,6 @@ fun RegisterContent(
         OutlinedTextField(
             value = phone,
             onValueChange = {
-                // Простая валидация номера телефона
                 val newValue = it.filter { char -> char.isDigit() || char == '+' }
                 phone = newValue
                 errorMessage = null
@@ -429,7 +426,6 @@ fun RegisterContent(
 
         Button(
             onClick = {
-                // Валидация полей
                 when {
                     email.isBlank() || password.isBlank() || phone.isBlank() -> {
                         errorMessage = "Заполните все поля"
@@ -453,7 +449,6 @@ fun RegisterContent(
                 auth.createUserWithEmailAndPassword(email, password)
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
-                            // Сохраняем номер телефона в Firestore после успешной регистрации
                             val user = auth.currentUser
                             user?.let {
                                 saveUserPhoneNumber(it.uid, phone, email) { success ->
@@ -496,7 +491,6 @@ fun RegisterContent(
     }
 }
 
-// Функция для сохранения номера телефона в Firestore
 private fun saveUserPhoneNumber(
     userId: String,
     phone: String,
@@ -555,7 +549,6 @@ fun transformedImageToTextContext(
             fontWeight = FontWeight.Bold
         )
 
-        // LazyColumn для текста с возможностью прокрутки
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -782,7 +775,6 @@ fun SavedTextsScreen() {
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // PLAY/STOP (как было)
                         Button(
                             onClick = {
                                 if (isPlaying) {
@@ -807,7 +799,6 @@ fun SavedTextsScreen() {
                             Text(if (isPlaying) "Остановить" else "Проиграть")
                         }
 
-                        // EXPORT + SHARE AUDIO (добавлено)
                         Button(
                             onClick = {
                                 if (isExporting) return@Button
@@ -836,7 +827,7 @@ fun SavedTextsScreen() {
                             } else {
                                 Icon(Icons.Default.Share, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Экспорт в аудио и поделиться")
+                                Text("Поделиться аудио")
                             }
                         }
                     }

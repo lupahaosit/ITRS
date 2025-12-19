@@ -92,14 +92,12 @@ class ApiBuilder {
         }
     }
 
-    // ИСПРАВЛЕНО: последовательная загрузка файлов с задержками
     private suspend fun uploadFilesWithDelay(files: List<Uri>, context: Context, token: String): List<String> =
         withContext(Dispatchers.IO) {
             val fileIds = mutableListOf<String>()
 
             for ((index, file) in files.withIndex()) {
                 try {
-                    // Добавляем задержку между запросами (2 секунды)
                     if (index > 0) {
                         delay(2000)
                     }
@@ -119,42 +117,34 @@ class ApiBuilder {
     private suspend fun uploadPNGFile(uri: Uri, context: Context, token: String): String =
         withContext(Dispatchers.IO) {
             try {
-                // Получаем InputStream для чтения файла
                 val inputStream = context.contentResolver.openInputStream(uri)
                     ?: throw IOException("Не удалось открыть файл: $uri")
 
-                // Читаем содержимое файла в массив байтов
                 val fileBytes = inputStream.readBytes()
                 inputStream.close()
 
-                // Проверяем размер файла
-                if (fileBytes.size > 20 * 1024 * 1024) { // 20MB лимит
+                if (fileBytes.size > 20 * 1024 * 1024) {
                     throw IOException("Файл слишком большой: ${fileBytes.size / 1024 / 1024}MB")
                 }
 
-                // Формируем имя файла с правильным расширением
                 val fileName = "${System.currentTimeMillis()}_${uri.lastPathSegment ?: "photo"}.png"
 
-                // Создаем RequestBody для отправки файла
                 val fileBody = fileBytes.toRequestBody("image/png".toMediaTypeOrNull())
 
-                // Формируем multipart-запрос
                 val requestBody = MultipartBody.Builder()
                     .setType(MultipartBody.FORM)
                     .addFormDataPart("file", fileName, fileBody)
                     .addFormDataPart("purpose", "general")
                     .build()
 
-                // Формируем POST-запрос
                 val request = Request.Builder()
                     .url("$baseUrl/files")
                     .addHeader("Authorization", "Bearer $token")
                     .addHeader("X-Client-ID", xClientId)
-                    .addHeader("X-Request-ID", UUID.randomUUID().toString()) // Уникальный ID для каждого запроса
+                    .addHeader("X-Request-ID", UUID.randomUUID().toString())
                     .post(requestBody)
                     .build()
 
-                // Выполняем запрос асинхронно
                 val client = unsafeOkHttpClient()
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string()
@@ -164,10 +154,8 @@ class ApiBuilder {
                             JSONObject(responseBody!!).getString("id")
                         }
                         response.code == 429 -> {
-                            // Обработка лимита запросов
                             Log.w("ApiBuilder", "Превышен лимит запросов, пробуем снова через 5 секунд")
                             delay(5000) // Ждем 5 секунд
-                            // Рекурсивно пробуем снова (максимум 3 попытки)
                             uploadPNGFile(uri, context, token)
                         }
                         else -> {
@@ -229,7 +217,7 @@ class ApiBuilder {
         return OkHttpClient.Builder()
             .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
             .hostnameVerifier { _, _ -> true }
-            .connectTimeout(30, TimeUnit.SECONDS) // Увеличиваем таймауты
+            .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
