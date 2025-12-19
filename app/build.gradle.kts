@@ -44,13 +44,14 @@ android {
 
 dependencies {
     implementation("androidx.compose.material:material-icons-extended")
-    implementation ("com.squareup.okhttp3:okhttp:4.10.0")
+    implementation ("com.squareup.okhttp3:okhttp:4.12.0")
     implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.google.firebase:firebase-analytics")
     implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore-ktx:24.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

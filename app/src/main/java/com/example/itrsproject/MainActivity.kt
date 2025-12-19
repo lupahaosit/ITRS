@@ -4,7 +4,9 @@ package com.example.itrsproject
 import android.R.attr.x
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -15,6 +17,7 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -51,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.core.content.FileProvider
 import androidx.lifecycle.LifecycleCoroutineScope
 import com.example.itrsproject.gigachatapi.ApiBuilder
 import androidx.lifecycle.lifecycleScope
@@ -62,8 +66,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import okhttp3.Dispatcher
+import java.io.BufferedOutputStream
+import java.io.DataOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.util.Objects
 import java.util.UUID
+import kotlin.math.PI
+import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -164,7 +174,10 @@ fun MainScreen() {
                     )
                     NavigationBarItem(
                         selected = false,
-                        onClick = { /* Здесь ваш код для Поделиться */ },
+                        onClick = {
+                            val text = extractedText.trim().ifEmpty { "Текст отсутствует" }
+                            shareText(context, text, "Поделиться текстом")
+                        },
                         icon = { Icon(Icons.Default.Share, contentDescription = "Поделиться") }
                     )
                 }
@@ -612,6 +625,7 @@ fun LoadingScreen() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun SavedTextsScreen() {
     val auth = FirebaseAuth.getInstance()
@@ -627,14 +641,18 @@ fun SavedTextsScreen() {
         isLoading = true
         error = null
         val email = auth.currentUser?.email ?: ""
-        dbService.getEntriesForUser(email, onSuccess = { list ->
-            items = list
-            isLoading = false
-        }, onFailure = { e ->
-            error = e.message ?: "Ошибка загрузки"
-            items = emptyList()
-            isLoading = false
-        })
+        dbService.getEntriesForUser(
+            email,
+            onSuccess = { list ->
+                items = list
+                isLoading = false
+            },
+            onFailure = { e ->
+                error = e.message ?: "Ошибка загрузки"
+                items = emptyList()
+                isLoading = false
+            }
+        )
     }
 
     Scaffold(
@@ -669,7 +687,10 @@ fun SavedTextsScreen() {
                 return@Column
             }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
                 items(items) { entry ->
                     Card(
                         modifier = Modifier
@@ -700,6 +721,7 @@ fun SavedTextsScreen() {
             val scrollState = rememberScrollState()
             val context = LocalContext.current
             var isPlaying by remember { mutableStateOf(false) }
+            var isExporting by remember { mutableStateOf(false) }
 
             val tts = remember {
                 TextToSpeech(context) { status ->
@@ -735,9 +757,7 @@ fun SavedTextsScreen() {
                             dbService.deleteEntry(entry.id) { ok ->
                                 if (ok) {
                                     items = items.filterNot { it.id == entry.id }
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Запись успешно удалена")
-                                    }
+                                    scope.launch { snackbarHostState.showSnackbar("Запись успешно удалена") }
                                 }
                             }
                         }
@@ -752,7 +772,9 @@ fun SavedTextsScreen() {
                             .verticalScroll(scrollState),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = entry.text.ifEmpty { "(Пустая запись)" })
+                        val entryText = entry.text.ifEmpty { "(Пустая запись)" }
+
+                        Text(text = entryText)
                         Text(
                             text = entry.createdAt?.toDate()?.toString() ?: "",
                             fontSize = 12.sp
@@ -760,6 +782,7 @@ fun SavedTextsScreen() {
 
                         Spacer(modifier = Modifier.height(12.dp))
 
+                        // PLAY/STOP (как было)
                         Button(
                             onClick = {
                                 if (isPlaying) {
@@ -767,7 +790,7 @@ fun SavedTextsScreen() {
                                     isPlaying = false
                                 } else {
                                     tts.speak(
-                                        entry.text.ifEmpty { "(Пустая запись)" },
+                                        entryText,
                                         TextToSpeech.QUEUE_FLUSH,
                                         null,
                                         entry.id
@@ -779,9 +802,42 @@ fun SavedTextsScreen() {
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             val icon = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow
-                            Icon(icon, contentDescription = if (isPlaying) "Остановить" else "Проиграть")
+                            Icon(icon, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(if (isPlaying) "Остановить" else "Проиграть")
+                        }
+
+                        // EXPORT + SHARE AUDIO (добавлено)
+                        Button(
+                            onClick = {
+                                if (isExporting) return@Button
+                                isExporting = true
+                                scope.launch {
+                                    try {
+                                        SpeechifyApiService.instance.init(context)
+                                        val audioFile = SpeechifyApiService.instance.synthesize(entryText)
+                                        shareAudioFile(context, audioFile, "Поделиться аудио")
+                                    } finally {
+                                        isExporting = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = !isExporting
+                        ) {
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Подготовка аудио…")
+                            } else {
+                                Icon(Icons.Default.Share, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Экспорт в аудио и поделиться")
+                            }
                         }
                     }
                 }
@@ -823,4 +879,36 @@ fun InfoHelpScreen() {
             Text("4. Сохраните или поделитесь результатом.", fontSize = 16.sp)
         }
     }
+}
+
+fun shareText(context: Context, text: String, title: String = "Поделиться") {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(Intent.createChooser(intent, title))
+}
+
+fun shareAudioFile(context: Context, file: File, title: String = "Поделиться аудио") {
+    val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
+    )
+
+    val mime = when (file.extension.lowercase()) {
+        "mp3" -> "audio/mpeg"
+        "wav" -> "audio/wav"
+        "ogg" -> "audio/ogg"
+        "aac" -> "audio/aac"
+        "m4a" -> "audio/mp4"
+        else -> "audio/*"
+    }
+
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = mime
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, title))
 }
